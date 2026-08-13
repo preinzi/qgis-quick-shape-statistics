@@ -1,0 +1,35 @@
+# This file contains metadata for your plugin.
+# This file should be included when you package your plugin.
+# Mandatory items:
+[general]
+name=QuickShapeStatistics
+qgisMinimumVersion=3.34
+qgisMaximumVersion=4.99
+description=Draw quick shapes to be used for simple zonal statistics.
+version=0.1
+author=preinzi (LiberGIS)
+email=stephan@libergis.at
+about=Click a button to draw a circle or a polygon shape, which will be used to calculate basic zonal statistics on the active layer. For polygons the area will be calculated, for lines the length will be used and for points the number of points will be summarized.
+tracker=https://github.com/preinzi/qgis-quick-shape-statistics/issues
+repository=https://github.com/preinzi/qgis-quick-shape-statistics
+# End of mandatory metadata
+
+# Recommended items:
+hasProcessingProvider=no
+changelog=0.1 - Initial release
+# Tags are comma separated with spaces allowed
+tags=python, gis, qgis, statistics, vector, zonal
+homepage=https://github.com/preinzi/qgis-quick-shape-statistics
+category=Vector
+icon=icon.svg
+# experimental flag
+experimental=True
+# deprecated flag (applies to the whole plugin, not just a single version)
+deprecated=False
+# Since QGIS 3.8, a comma separated list of plugins to be installed
+# (or upgraded) can be specified.
+# Check the documentation for more information.
+# plugin_dependencies=
+
+# If the plugin can run on QGIS Server.
+server=False

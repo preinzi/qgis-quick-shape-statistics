@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+tags: [off, zero, circle, round, circular, geometry, form, figure, pattern, outline]
+category: Shapes
+version: "1.0"
+unicode: "ea6b"
+-->
+
+<svg
+   width="24"
+   height="24"
+   viewBox="0 0 24 24"
+   fill="none"
+   stroke="currentColor"
+   stroke-width="2"
+   stroke-linecap="round"
+   stroke-linejoin="round"
+   version="1.1"
+   id="svg4"
+   sodipodi:docname="circle.svg"
+   inkscape:version="1.2.2 (b0a8486541, 2022-12-01)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs8" />
+  <sodipodi:namedview
+     id="namedview6"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     showgrid="false"
+     inkscape:zoom="22.627417"
+     inkscape:cx="4.2868349"
+     inkscape:cy="2.8947184"
+     inkscape:window-width="1920"
+     inkscape:window-height="1017"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg4" />
+  <path
+     d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"
+     id="path2"
+     style="stroke-width:1.4;stroke-dasharray:none" />
+  <path
+     d="m 10,12 a 2,2 0 1 0 4,0 2,2 0 1 0 -4,0"
+     id="path4"
+     style="stroke-width:1.3;stroke-dasharray:none" />
+  <path
+     d="m 18.983991,11.998587 a 2,2 0 1 0 3.999999,0 2,2 0 1 0 -3.999999,0"
+     id="path4-3"
+     style="stroke-width:1.3;stroke-dasharray:none" />
+  <path
+     style="fill:#89b940;fill-opacity:1;stroke-width:0;stroke-dasharray:none"
+     d="M 11.674197,13.318166 C 11.059858,13.152717 10.65162,12.62647 10.65162,11.999995 c 0,-0.632849 0.411215,-1.157141 1.035009,-1.319619 0.541328,-0.140999 1.145218,0.106075 1.460624,0.597593 0.268997,0.419196 0.268997,1.024855 0,1.444052 -0.316238,0.492812 -0.931772,0.741919 -1.473056,0.596145 z"
+     id="path1449" />
+  <path
+     style="fill:#89b940;fill-opacity:1;stroke-width:0;stroke-dasharray:none"
+     d="m 20.650479,13.348061 c -0.628274,-0.169202 -1.045773,-0.707386 -1.045773,-1.348073 0,-0.647204 0.420544,-1.18339 1.058488,-1.349553 0.553607,-0.144197 1.171196,0.108481 1.493757,0.611149 0.275099,0.428705 0.275099,1.048103 0,1.476808 -0.323412,0.503992 -0.952909,0.75875 -1.506472,0.609669 z"
+     id="path1449-6" />
+</svg>
