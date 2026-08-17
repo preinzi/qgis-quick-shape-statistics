@@ -4,7 +4,7 @@ Draw a circle or polygon directly on the map and instantly see area,
 length, or point-count statistics for the active layer within that
 shape — broken down by class if the layer is categorized.
 
-<img src="screenshots/example.png" alt="QuickShapeStatistics in action" width="600">
+<img src="screenshots/example.png" alt="QuickShapeStatistics in action" width="300">
 
 ## Features
 
