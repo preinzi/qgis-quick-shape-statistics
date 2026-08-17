@@ -1,6 +1,7 @@
 from qgis.gui import QgsMapTool
 from qgis.core import Qgis, QgsGeometry
 from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtGui import QCursor
 
 
 class PolygonTool(QgsMapTool):
@@ -13,8 +14,16 @@ class PolygonTool(QgsMapTool):
         self.on_finished = on_finished
         self.points = []
         self._ignore_next_release = False
+        self._layer_valid = True
+
+    def set_layer_valid(self, valid):
+        self._layer_valid = valid
+        self.setCursor(QCursor(
+            Qt.CursorShape.CrossCursor if valid else Qt.CursorShape.ForbiddenCursor))
 
     def canvasReleaseEvent(self, e):
+        if not self._layer_valid:
+            return
         if self._ignore_next_release:
             self._ignore_next_release = False
             return
@@ -29,6 +38,8 @@ class PolygonTool(QgsMapTool):
         self._update_band()
 
     def canvasDoubleClickEvent(self, e):
+        if not self._layer_valid:
+            return
         self._ignore_next_release = True  # absorb the release that follows
         if self.points:
             self.points.pop()  # drop the vertex the double-click's own first click just added
@@ -58,7 +69,7 @@ class PolygonTool(QgsMapTool):
     def _finish(self):
         if len(self.points) >= 3:
             geom = QgsGeometry.fromPolygonXY([self.points])
-            self.rb.setToGeometry(geom, None)  # replace the live-cursor preview with the real final shape
+            self.rb.setToGeometry(geom, None)
             self.points = []
             if not geom.isEmpty():
                 self.on_finished(geom)

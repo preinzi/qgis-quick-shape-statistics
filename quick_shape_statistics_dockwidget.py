@@ -49,8 +49,11 @@ class QuickShapeStatisticsDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         self.resultsTable = QtWidgets.QTableWidget()
         self.resultsTable.setColumnCount(3)
         self.resultsTable.setHorizontalHeaderLabels(["Class", "Value", "%"])
-        self.resultsTable.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.resultsTable)
+
+        self.warningLabel = QtWidgets.QLabel("")
+        self.warningLabel.setVisible(False)
+        layout.addWidget(self.warningLabel)
 
         bottom_row = QtWidgets.QHBoxLayout()
         self.totalLabel = QtWidgets.QLabel("Total: -")
@@ -86,6 +89,12 @@ class QuickShapeStatisticsDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         result = calculate_stats(self.current_aoi, self.current_layer, class_field=class_field)
         self._populate_table(result)
 
+    def _apply_column_sizing(self):
+        header = self.resultsTable.horizontalHeader()
+        header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.Stretch)
+        for col in range(1, self.resultsTable.columnCount()):
+            header.setSectionResizeMode(col, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+
     def _populate_table(self, result):
         metric = result["metric"]
         headers = {"area": "Area (m²)", "length": "Length (m)", "count": "Count"}
@@ -99,6 +108,7 @@ class QuickShapeStatisticsDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         self.resultsTable.setColumnCount(len(col_headers))
         self.resultsTable.setHorizontalHeaderLabels(col_headers)
         self.resultsTable.setRowCount(0)
+        self._apply_column_sizing()
 
         total = result["total"] or 1
         colors = self._class_colors() if result["class_field"] else {}
@@ -127,6 +137,14 @@ class QuickShapeStatisticsDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         else:
             unit = "m²" if metric == "area" else "m"
             self.totalLabel.setText(f"Total: {result['total']:,.1f} {unit}")
+
+        invalid_count = result.get("invalid_count", 0)
+        if invalid_count:
+            self.warningLabel.setText(
+                f"⚠ {invalid_count} feature(s) skipped due to invalid geometry")
+            self.warningLabel.setVisible(True)
+        else:
+            self.warningLabel.setVisible(False)
 
     def _copy_to_clipboard(self):
         headers = [self.resultsTable.horizontalHeaderItem(c).text()

@@ -5,6 +5,22 @@ from qgis.core import (
 )
 
 
+def _pick_fallback_class_field(layer):
+    """No categorized renderer to read a class field from - fall back to the
+    first non-ID field, or the only field if there's just one."""
+    fields = [f.name() for f in layer.fields()]
+    if not fields:
+        return None
+    if len(fields) == 1:
+        return fields[0]
+    id_like = {"fid", "id", "objectid"}
+    for name in fields:
+        lower = name.lower()
+        if lower not in id_like and not lower.endswith("_id"):
+            return name
+    return fields[0]
+
+
 def calculate_stats(aoi_geom, layer, class_field=None):
     canvas_crs = QgsProject.instance().crs()
     if layer.crs() != canvas_crs:
@@ -20,16 +36,26 @@ def calculate_stats(aoi_geom, layer, class_field=None):
     if class_field is None:
         renderer = layer.renderer()
         class_field = getattr(renderer, "classAttribute", lambda: None)() or None
+        if class_field is None:
+            class_field = _pick_fallback_class_field(layer)
 
     index = QgsSpatialIndex(layer.getFeatures())
     req = QgsFeatureRequest().setFilterFids(index.intersects(aoi_geom.boundingBox()))
 
     results, counts, total = defaultdict(float), defaultdict(int), 0.0
+    invalid_count = 0
     for feat in layer.getFeatures(req):
         geom = feat.geometry()
+        if geom.isNull() or not geom.isGeosValid():
+            invalid_count += 1
+            continue
         if not geom.intersects(aoi_geom):
             continue
-        clipped = geom.intersection(aoi_geom)
+        try:
+            clipped = geom.intersection(aoi_geom)
+        except Exception:
+            invalid_count += 1
+            continue
         if clipped.isEmpty():
             continue
 
@@ -51,7 +77,7 @@ def calculate_stats(aoi_geom, layer, class_field=None):
         total += value
 
     return {"results": dict(results), "counts": dict(counts), "total": total,
-            "class_field": class_field,
+            "class_field": class_field, "invalid_count": invalid_count,
             "metric": {Qgis.GeometryType.Polygon: "area",
                        Qgis.GeometryType.Line: "length",
                        Qgis.GeometryType.Point: "count"}[geom_type]}

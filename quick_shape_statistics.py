@@ -129,12 +129,25 @@ class QuickShapeStatistics:
                 action.setIcon(QIcon(icon_path))
                 break
 
+    def _layer_is_vector(self, layer):
+        return layer is not None and layer.type() == Qgis.LayerType.Vector
+
+    def _update_tool_layer_state(self, tool):
+        valid = self._layer_is_vector(self.iface.activeLayer())
+        tool.set_layer_valid(valid)
+        if not valid:
+            self.iface.messageBar().pushWarning(
+                "QuickShapeStatistics", "Select a vector layer to use this tool.")
+
     def _on_layer_changed(self, layer):
         self.rubber_band.reset(Qgis.GeometryType.Polygon)
         if self.circle_tool:
             self.circle_tool.reset()
         if self.polygon_tool:
             self.polygon_tool.reset()
+        active_tool = self.iface.mapCanvas().mapTool()
+        if active_tool is not None and active_tool in (self.circle_tool, self.polygon_tool):
+            self._update_tool_layer_state(active_tool)
 
     def _ensure_dockwidget(self):
         if not self.pluginIsActive:
@@ -150,18 +163,35 @@ class QuickShapeStatistics:
         if self.circle_tool is None:
             self.circle_tool = CircleTool(self.iface.mapCanvas(), self.rubber_band, self._on_shape_drawn)
         self.iface.mapCanvas().setMapTool(self.circle_tool)
+        self._update_tool_layer_state(self.circle_tool)
 
     def run_polygon(self):
         self._ensure_dockwidget()
         if self.polygon_tool is None:
             self.polygon_tool = PolygonTool(self.iface.mapCanvas(), self.rubber_band, self._on_shape_drawn)
         self.iface.mapCanvas().setMapTool(self.polygon_tool)
+        self._update_tool_layer_state(self.polygon_tool)
 
     def _on_shape_drawn(self, geom):
         layer = self.iface.activeLayer()
-        if layer is None or layer.type() != Qgis.LayerType.Vector:
+        if not self._layer_is_vector(layer):
             self.iface.messageBar().pushWarning("QuickShapeStatistics", "Select a vector layer first.")
             return
+
+        if not geom.isGeosValid():
+            fixed = geom.makeValid()
+            if fixed and not fixed.isEmpty() and fixed.isGeosValid():
+                geom = fixed
+                self.iface.messageBar().pushInfo(
+                    "QuickShapeStatistics",
+                    "The drawn shape had a self-intersection and was automatically corrected.")
+            else:
+                self.iface.messageBar().pushWarning(
+                    "QuickShapeStatistics",
+                    "The drawn shape is invalid and could not be corrected automatically. "
+                    "Please redraw it.")
+                return
+
         self.dockwidget.show_results(geom, layer)
 
     #--------------------------------------------------------------------------
