@@ -30,7 +30,7 @@ shape — broken down by class if the layer is categorized.
 
 ## Installation
 
-**From the QGIS Plugin Repository**: Plugins > Manage
+**From the QGIS Plugin Repository** (once approved): Plugins > Manage
 and Install Plugins > search "QuickShapeStatistics" > Install
 
 **From a ZIP file**: Plugins > Manage and Install Plugins > Install from
@@ -46,6 +46,16 @@ Statistics are calculated on the main thread. On a very large active
 layer or an unusually large drawn shape, QGIS may briefly become
 unresponsive during calculation — it resolves on its own once the
 calculation finishes. Not a crash, just a current trade-off.
+
+## How measurements are calculated
+
+Area and length are calculated geodesically — accounting for the earth's
+curvature via QGIS's ellipsoid settings — rather than with flat planar
+math. Results are always in square meters / meters, regardless of the
+active layer's CRS. This relies on the project's Ellipsoid setting being
+enabled, which is QGIS's default; if it's explicitly set to "None,"
+the plugin silently falls back to flat calculations in the layer's
+native units instead.
 
 ## Changelog
 
