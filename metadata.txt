@@ -6,7 +6,7 @@ name=QuickShapeStatistics
 qgisMinimumVersion=3.34
 qgisMaximumVersion=4.99
 description=Draw quick shapes to be used for simple zonal statistics.
-version=0.3
+version=0.4
 changelog=0.1 - Initial release
     0.2 - Removed unused scaffolding files flagged by the plugin repository scanner
     0.3 - Added invalid geometry detection with automatic repair, and per-layer invalid feature skipping
@@ -14,6 +14,7 @@ changelog=0.1 - Initial release
     0.3 - Added a cursor warning when the active layer is not a vector layer
     0.3 - Added automatic fallback class field selection for layers without categorized symbology
     0.3 - Adjusted results table column widths
+    0.4 - Documented ellipsoidal measurement behavior and units in the README
 author=preinzi (LiberGIS)
 email=stephan@libergis.at
 about=Click a button to draw a circle or a polygon shape, which will be used to calculate basic zonal statistics on the active layer. For polygons the area will be calculated, for lines the length will be used and for points the number of points will be summarized.
