@@ -59,6 +59,8 @@ native units instead.
 
 ## Changelog
 
+- **0.4** — Documented ellipsoidal measurement behavior and units in the
+  README
 - **0.3** — Invalid geometry detection with automatic repair for drawn
   shapes, and invalid-feature skipping for the measured layer; live
   radius/area preview and typed-radius entry while drawing circles;
