@@ -34,7 +34,7 @@ shape — broken down by class if the layer is categorized.
 
 ## Installation
 
-**From the QGIS Plugin Repository** (once approved): Plugins > Manage
+**From the QGIS Plugin Repository** (show experimental plugins): Plugins > Manage
 and Install Plugins > search "QuickShapeStatistics" > Install
 
 **From a ZIP file**: Plugins > Manage and Install Plugins > Install from
