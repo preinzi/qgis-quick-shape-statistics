@@ -32,6 +32,27 @@ FORM_CLASS, _ = uic.loadUiType(
     from_imports=True, import_from='quick_shape_statistics')
 
 
+def _fmt(value, decimals=0):
+    """Format a number with a space as the thousands separator, avoiding
+    a comma that reads as a decimal separator in German/Austrian locales."""
+    return f"{value:,.{decimals}f}".replace(",", " ")
+
+
+class _NumericItem(QtWidgets.QTableWidgetItem):
+    """Table cell that sorts by an underlying numeric value instead of its
+    displayed (formatted) text, so clicking a column header sorts
+    numerically rather than alphabetically."""
+
+    def __init__(self, text, sort_value):
+        super().__init__(text)
+        self.sort_value = sort_value
+
+    def __lt__(self, other):
+        if isinstance(other, _NumericItem):
+            return self.sort_value < other.sort_value
+        return super().__lt__(other)
+
+
 class QuickShapeStatisticsDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
     closingPlugin = pyqtSignal()
 
@@ -89,13 +110,13 @@ class QuickShapeStatisticsDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         result = calculate_stats(self.current_aoi, self.current_layer, class_field=class_field)
         self._populate_table(result)
 
-    def _apply_column_sizing(self):
+    def _apply_column_modes(self):
         header = self.resultsTable.horizontalHeader()
-        header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.Stretch)
-        for col in range(1, self.resultsTable.columnCount()):
-            header.setSectionResizeMode(col, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Interactive)
 
     def _populate_table(self, result):
+        self.resultsTable.setSortingEnabled(False)
+
         metric = result["metric"]
         headers = {"area": "Area (m²)", "length": "Length (m)", "count": "Count"}
         show_features_col = metric != "count"
@@ -108,7 +129,7 @@ class QuickShapeStatisticsDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         self.resultsTable.setColumnCount(len(col_headers))
         self.resultsTable.setHorizontalHeaderLabels(col_headers)
         self.resultsTable.setRowCount(0)
-        self._apply_column_sizing()
+        self._apply_column_modes()
 
         total = result["total"] or 1
         colors = self._class_colors() if result["class_field"] else {}
@@ -123,20 +144,25 @@ class QuickShapeStatisticsDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 item.setBackground(colors[cls])
             self.resultsTable.setItem(i, col, item); col += 1
 
-            value_text = f"{int(value)}" if metric == "count" else f"{value:,.1f}"
-            self.resultsTable.setItem(i, col, QtWidgets.QTableWidgetItem(value_text)); col += 1
+            value_text = f"{int(value)}" if metric == "count" else _fmt(value, 1)
+            self.resultsTable.setItem(i, col, _NumericItem(value_text, value)); col += 1
 
             if show_features_col:
-                self.resultsTable.setItem(i, col, QtWidgets.QTableWidgetItem(str(counts.get(cls, 0))))
+                feat_count = counts.get(cls, 0)
+                self.resultsTable.setItem(i, col, _NumericItem(str(feat_count), feat_count))
                 col += 1
 
-            self.resultsTable.setItem(i, col, QtWidgets.QTableWidgetItem(f"{100 * value / total:.1f}%"))
+            pct = 100 * value / total
+            self.resultsTable.setItem(i, col, _NumericItem(f"{pct:.1f}%", pct))
+
+        self.resultsTable.resizeColumnsToContents()
+        self.resultsTable.setSortingEnabled(True)
 
         if metric == "count":
             self.totalLabel.setText(f"Total: {int(result['total'])}")
         else:
             unit = "m²" if metric == "area" else "m"
-            self.totalLabel.setText(f"Total: {result['total']:,.1f} {unit}")
+            self.totalLabel.setText(f"Total: {_fmt(result['total'], 1)} {unit}")
 
         invalid_count = result.get("invalid_count", 0)
         if invalid_count:

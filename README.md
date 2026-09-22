@@ -13,15 +13,19 @@ shape — broken down by class if the layer is categorized.
   dragging, or type a number and press Enter to set an exact radius.
   Right-click or Escape aborts.
 - **Draw Polygon for statistics** — click to add vertices, finish with a
-  double-click, right-click, or Enter. Escape cancels.
+  double-click, right-click, or Enter. While drawing, a live tooltip shows
+  the current segment's length and the polygon's area so far; type a
+  number and press Enter to set an exact segment length. Escape cancels.
 - Automatically measures area (polygon layers), length (line layers), or
   count (point layers), clipped precisely to the drawn shape
 - Automatically groups results by class using the active layer's existing
   Categorized symbology; falls back to a sensible non-ID field if the layer
   isn't categorized, with a dropdown to override the field manually
 - Feature count per class alongside the measured value
+- Results table columns can be resized and sorted by clicking a column
+  header, similar to a QGIS attribute table
 - One-click copy of the results table (tab-separated, pastes directly
-  into a spreadsheet)
+  into a spreadsheet, respects the current sort order)
 - Warns and disables drawing (with a forbidden cursor) if the active layer
   isn't a vector layer
 - Invalid drawn shapes are automatically repaired where possible; invalid
@@ -59,6 +63,11 @@ native units instead.
 
 ## Changelog
 
+- **0.5** — Fixed thousands separator (space instead of comma); results
+  table columns are now resizable and sortable by clicking headers;
+  results panel reopens automatically when a shape is finished, if it
+  was closed; live segment length and running area preview while
+  drawing polygons, with typed segment length entry
 - **0.4** — Documented ellipsoidal measurement behavior and units in the
   README
 - **0.3** — Invalid geometry detection with automatic repair for drawn

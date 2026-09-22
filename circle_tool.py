@@ -6,6 +6,12 @@ from qgis.PyQt.QtGui import QCursor
 from qgis.PyQt.QtWidgets import QToolTip
 
 
+def _fmt(value, decimals=0):
+    """Format a number with a space as the thousands separator, avoiding
+    a comma that reads as a decimal separator in German/Austrian locales."""
+    return f"{value:,.{decimals}f}".replace(",", " ")
+
+
 class CircleTool(QgsMapTool):
     """Click to set center, click again (or type a radius and press Enter)
     to finish. Escape or right-click cancels."""
@@ -81,7 +87,7 @@ class CircleTool(QgsMapTool):
         area = math.pi * radius * radius
         suffix = "  (typed - Enter to confirm)" if typed else ""
         QToolTip.showText(
-            QCursor.pos(), f"Radius: {radius:,.0f} m   Area: {area:,.0f} m²{suffix}", self.canvas())
+            QCursor.pos(), f"Radius: {_fmt(radius)} m   Area: {_fmt(area)} m²{suffix}", self.canvas())
 
     def _finish(self, radius):
         geom = QgsGeometry.fromPointXY(self.center).buffer(radius, 48)

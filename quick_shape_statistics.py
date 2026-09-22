@@ -192,6 +192,7 @@ class QuickShapeStatistics:
                     "Please redraw it.")
                 return
 
+        self._ensure_dockwidget()
         self.dockwidget.show_results(geom, layer)
 
     #--------------------------------------------------------------------------
