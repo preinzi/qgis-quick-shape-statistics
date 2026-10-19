@@ -22,20 +22,13 @@
  ***************************************************************************/
 """
 
-import os
-from qgis.PyQt import QtGui, QtWidgets, uic
-from .stats import calculate_stats
-from qgis.PyQt.QtCore import pyqtSignal, QTimer
+from qgis.PyQt import QtGui, QtWidgets
+from qgis.PyQt.QtCore import QTimer
+from qgis.core import QgsProject
+from .stats import calculate_stats, clean_value, renderer_class_field
+from .utils import fmt_number
 
-FORM_CLASS, _ = uic.loadUiType(
-    os.path.join(os.path.dirname(__file__), 'quick_shape_statistics_dockwidget_base.ui'),
-    from_imports=True, import_from='quick_shape_statistics')
-
-
-def _fmt(value, decimals=0):
-    """Format a number with a space as the thousands separator, avoiding
-    a comma that reads as a decimal separator in German/Austrian locales."""
-    return f"{value:,.{decimals}f}".replace(",", " ")
+AUTO_FIELD = "(auto)"
 
 
 class _NumericItem(QtWidgets.QTableWidgetItem):
@@ -53,12 +46,15 @@ class _NumericItem(QtWidgets.QTableWidgetItem):
         return super().__lt__(other)
 
 
-class QuickShapeStatisticsDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
-    closingPlugin = pyqtSignal()
+class QuickShapeStatisticsDockWidget(QtWidgets.QDockWidget):
+    """Results panel, built entirely in Python (no Qt Designer .ui file)."""
 
     def __init__(self, parent=None):
-        super(QuickShapeStatisticsDockWidget, self).__init__(parent)
-        self.setupUi(self)
+        super().__init__(parent)
+        # Same object name and title the former .ui file set, so the panel
+        # behaves exactly as in earlier versions.
+        self.setObjectName("QuickShapeStatisticsDockWidgetBase")
+        self.setWindowTitle("QuickShapeStatistics")
 
         container = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(container)
@@ -87,34 +83,67 @@ class QuickShapeStatisticsDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
 
         self.setWidget(container)
         self.current_aoi = None
-        self.current_layer = None
+        self._layer_id = None
+        self._reopen_floating = False
+        self._floating_geometry = None
 
     def closeEvent(self, event):
-        self.closingPlugin.emit()
-        event.accept()
+        # Remember a floating panel, so reopening it doesn't dock it again.
+        self._reopen_floating = self.isFloating()
+        if self._reopen_floating:
+            self._floating_geometry = self.geometry()
+        super().closeEvent(event)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._reopen_floating:
+            self._reopen_floating = False
+            QTimer.singleShot(0, self._restore_floating)
+
+    def _restore_floating(self):
+        if not self.isFloating():
+            self.setFloating(True)
+        if self._floating_geometry is not None:
+            self.setGeometry(self._floating_geometry)
 
     def show_results(self, aoi_geom, layer):
-        self.current_aoi, self.current_layer = aoi_geom, layer
+        # Keep a manually chosen class field when drawing again on the same layer.
+        keep = self.fieldCombo.currentText() if layer.id() == self._layer_id else AUTO_FIELD
+        self.current_aoi, self._layer_id = aoi_geom, layer.id()
+
         self.fieldCombo.blockSignals(True)
         self.fieldCombo.clear()
-        self.fieldCombo.addItem("(auto)")
+        self.fieldCombo.addItem(AUTO_FIELD)
         self.fieldCombo.addItems([f.name() for f in layer.fields()])
+        index = self.fieldCombo.findText(keep)
+        self.fieldCombo.setCurrentIndex(index if index >= 0 else 0)
         self.fieldCombo.blockSignals(False)
-        self._recalculate(class_field=None)
 
-    def _on_field_changed(self, name):
-        if self.current_layer:
-            self._recalculate(class_field=None if name == "(auto)" else name)
+        self._recalculate()
 
-    def _recalculate(self, class_field):
-        result = calculate_stats(self.current_aoi, self.current_layer, class_field=class_field)
-        self._populate_table(result)
+    def _current_layer(self):
+        """The layer of the last drawn shape, or None if it was removed."""
+        if self._layer_id is None:
+            return None
+        return QgsProject.instance().mapLayer(self._layer_id)
+
+    def _on_field_changed(self, _name):
+        self._recalculate()
+
+    def _recalculate(self):
+        layer = self._current_layer()
+        if layer is None or self.current_aoi is None:
+            return
+        name = self.fieldCombo.currentText()
+        class_field = None if name == AUTO_FIELD else name
+        result = calculate_stats(self.current_aoi, layer, class_field=class_field)
+        self._populate_table(result, layer)
 
     def _apply_column_modes(self):
         header = self.resultsTable.horizontalHeader()
         header.setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Interactive)
 
-    def _populate_table(self, result):
+    def _populate_table(self, result, layer):
         self.resultsTable.setSortingEnabled(False)
 
         metric = result["metric"]
@@ -132,7 +161,7 @@ class QuickShapeStatisticsDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         self._apply_column_modes()
 
         total = result["total"] or 1
-        colors = self._class_colors() if result["class_field"] else {}
+        colors = self._class_colors(layer, result["class_field"])
         counts = result.get("counts", {})
 
         rows = sorted(result["results"].items(), key=lambda kv: kv[1], reverse=True)
@@ -142,10 +171,12 @@ class QuickShapeStatisticsDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             item = QtWidgets.QTableWidgetItem(str(cls))
             if cls in colors:
                 item.setBackground(colors[cls])
-            self.resultsTable.setItem(i, col, item); col += 1
+            self.resultsTable.setItem(i, col, item)
+            col += 1
 
-            value_text = f"{int(value)}" if metric == "count" else _fmt(value, 1)
-            self.resultsTable.setItem(i, col, _NumericItem(value_text, value)); col += 1
+            value_text = f"{int(value)}" if metric == "count" else fmt_number(value, 1)
+            self.resultsTable.setItem(i, col, _NumericItem(value_text, value))
+            col += 1
 
             if show_features_col:
                 feat_count = counts.get(cls, 0)
@@ -162,7 +193,7 @@ class QuickShapeStatisticsDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             self.totalLabel.setText(f"Total: {int(result['total'])}")
         else:
             unit = "m²" if metric == "area" else "m"
-            self.totalLabel.setText(f"Total: {_fmt(result['total'], 1)} {unit}")
+            self.totalLabel.setText(f"Total: {fmt_number(result['total'], 1)} {unit}")
 
         invalid_count = result.get("invalid_count", 0)
         if invalid_count:
@@ -184,10 +215,18 @@ class QuickShapeStatisticsDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         self.copyButton.setText("Copied!")
         QTimer.singleShot(1200, lambda: self.copyButton.setText("Copy results"))
 
-    def _class_colors(self):
-        renderer = self.current_layer.renderer()
+    def _class_colors(self, layer, class_field):
+        """Colors of the Categorized renderer's classes - only when the table is
+        grouped by the renderer's own field, otherwise values could match by
+        accident and rows would get the wrong color."""
+        if not class_field or class_field != renderer_class_field(layer):
+            return {}
         colors = {}
-        if hasattr(renderer, "categories"):
-            for cat in renderer.categories():
-                colors[cat.value()] = QtGui.QColor(cat.symbol().color())
+        for cat in layer.renderer().categories():
+            values = cat.value() if isinstance(cat.value(), list) else [cat.value()]
+            for value in values:
+                try:
+                    colors[clean_value(value)] = QtGui.QColor(cat.symbol().color())
+                except TypeError:  # unhashable category value - skip coloring it
+                    pass
         return colors

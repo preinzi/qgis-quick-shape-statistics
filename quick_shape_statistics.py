@@ -25,11 +25,14 @@ from qgis.PyQt.QtCore import QLocale, QTranslator, QCoreApplication, Qt
 from qgis.core import QgsSettings, Qgis
 from qgis.PyQt.QtGui import QIcon, QColor
 from qgis.PyQt.QtWidgets import QAction
-from qgis.gui import QgsRubberBand
+from qgis.gui import QgsMessageBarItem, QgsRubberBand
 from .quick_shape_statistics_dockwidget import QuickShapeStatisticsDockWidget
 from .circle_tool import CircleTool
 from .polygon_tool import PolygonTool
+from .stats import METRICS
 import os.path
+
+MESSAGE_SECONDS = 5
 
 
 class QuickShapeStatistics:
@@ -52,13 +55,12 @@ class QuickShapeStatistics:
 
         self.actions = []
         self.menu = self.tr(u'&QuickShapeStatistics')
-        self.toolbar = self.iface.addToolBar(u'QuickShapeStatistics')
-        self.toolbar.setObjectName(u'QuickShapeStatistics')
-
-        self.pluginIsActive = False
+        self.toolbar = None
+        self.rubber_band = None
         self.dockwidget = None
         self.circle_tool = None
         self.polygon_tool = None
+        self._message = None
 
 
     # noinspection PyMethodMayBeStatic
@@ -106,6 +108,9 @@ class QuickShapeStatistics:
 
 
     def initGui(self):
+        self.toolbar = self.iface.addToolBar(u'QuickShapeStatistics')
+        self.toolbar.setObjectName(u'QuickShapeStatistics')
+
         self.rubber_band = QgsRubberBand(self.iface.mapCanvas(), Qgis.GeometryType.Polygon)
         self.rubber_band.setColor(QColor(255, 0, 0, 100))
         self.iface.currentLayerChanged.connect(self._on_layer_changed)
@@ -129,15 +134,35 @@ class QuickShapeStatistics:
                 action.setIcon(QIcon(icon_path))
                 break
 
-    def _layer_is_vector(self, layer):
-        return layer is not None and layer.type() == Qgis.LayerType.Vector
+    def _layer_is_supported(self, layer):
+        """A vector layer with point, line or polygon geometry (not a raster,
+        and not a table without geometry)."""
+        return (layer is not None
+                and layer.type() == Qgis.LayerType.Vector
+                and layer.geometryType() in METRICS)
+
+    def _show_message(self, text, level=Qgis.MessageLevel.Warning):
+        """Show one plugin message at a time; it disappears after a few seconds."""
+        self._clear_message()
+        self._message = QgsMessageBarItem("QuickShapeStatistics", text, level, MESSAGE_SECONDS)
+        self.iface.messageBar().pushItem(self._message)
+
+    def _clear_message(self):
+        if self._message is not None:
+            try:
+                self.iface.messageBar().popWidget(self._message)
+            except RuntimeError:  # already closed by the user or timed out
+                pass
+            self._message = None
 
     def _update_tool_layer_state(self, tool):
-        valid = self._layer_is_vector(self.iface.activeLayer())
+        valid = self._layer_is_supported(self.iface.activeLayer())
         tool.set_layer_valid(valid)
-        if not valid:
-            self.iface.messageBar().pushWarning(
-                "QuickShapeStatistics", "Select a vector layer to use this tool.")
+        if valid:
+            self._clear_message()
+        else:
+            self._show_message(
+                "Select a vector layer with point, line or polygon geometry to use this tool.")
 
     def _on_layer_changed(self, layer):
         self.rubber_band.reset(Qgis.GeometryType.Polygon)
@@ -150,13 +175,13 @@ class QuickShapeStatistics:
             self._update_tool_layer_state(active_tool)
 
     def _ensure_dockwidget(self):
-        if not self.pluginIsActive:
-            self.pluginIsActive = True
-            if self.dockwidget is None:
-                self.dockwidget = QuickShapeStatisticsDockWidget()
-            self.dockwidget.closingPlugin.connect(self.onClosePlugin)
+        """Create the results panel once; afterwards only show it again, so it
+        stays wherever it was docked."""
+        if self.dockwidget is None:
+            self.dockwidget = QuickShapeStatisticsDockWidget(self.iface.mainWindow())
             self.iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dockwidget)
         self.dockwidget.show()
+        self.dockwidget.raise_()
 
     def run_circle(self):
         self._ensure_dockwidget()
@@ -174,20 +199,20 @@ class QuickShapeStatistics:
 
     def _on_shape_drawn(self, geom):
         layer = self.iface.activeLayer()
-        if not self._layer_is_vector(layer):
-            self.iface.messageBar().pushWarning("QuickShapeStatistics", "Select a vector layer first.")
+        if not self._layer_is_supported(layer):
+            self._show_message(
+                "Select a vector layer with point, line or polygon geometry first.")
             return
 
         if not geom.isGeosValid():
             fixed = geom.makeValid()
             if fixed and not fixed.isEmpty() and fixed.isGeosValid():
                 geom = fixed
-                self.iface.messageBar().pushInfo(
-                    "QuickShapeStatistics",
-                    "The drawn shape had a self-intersection and was automatically corrected.")
+                self._show_message(
+                    "The drawn shape had a self-intersection and was automatically corrected.",
+                    Qgis.MessageLevel.Info)
             else:
-                self.iface.messageBar().pushWarning(
-                    "QuickShapeStatistics",
+                self._show_message(
                     "The drawn shape is invalid and could not be corrected automatically. "
                     "Please redraw it.")
                 return
@@ -197,20 +222,34 @@ class QuickShapeStatistics:
 
     #--------------------------------------------------------------------------
 
-    def onClosePlugin(self):
-        """Cleanup necessary items here when plugin dockwidget is closed"""
-        self.dockwidget.closingPlugin.disconnect(self.onClosePlugin)
-        self.pluginIsActive = False
-
-
     def unload(self):
-        """Removes the plugin menu item and icon from QGIS GUI."""
+        """Remove everything the plugin added to the QGIS interface, so that
+        reloading or uninstalling leaves nothing behind."""
         self.iface.currentLayerChanged.disconnect(self._on_layer_changed)
-        self.rubber_band.reset(Qgis.GeometryType.Polygon)
+        self._clear_message()
+
+        canvas = self.iface.mapCanvas()
+        for tool in (self.circle_tool, self.polygon_tool):
+            if tool is not None and canvas.mapTool() == tool:
+                canvas.unsetMapTool(tool)
+        self.circle_tool = None
+        self.polygon_tool = None
+
+        if self.rubber_band is not None:
+            self.rubber_band.reset(Qgis.GeometryType.Polygon)
+            canvas.scene().removeItem(self.rubber_band)
+            self.rubber_band = None
+
+        if self.dockwidget is not None:
+            self.iface.removeDockWidget(self.dockwidget)
+            self.dockwidget.deleteLater()
+            self.dockwidget = None
 
         for action in self.actions:
-            self.iface.removePluginMenu(
-                self.tr(u'&QuickShapeStatistics'),
-                action)
-            self.iface.removeToolBarIcon(action)
-        del self.toolbar
+            self.iface.removePluginMenu(self.menu, action)
+        self.actions = []
+
+        if self.toolbar is not None:
+            self.iface.mainWindow().removeToolBar(self.toolbar)
+            self.toolbar.deleteLater()
+            self.toolbar = None

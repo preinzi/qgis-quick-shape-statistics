@@ -1,20 +1,18 @@
-import math
 from qgis.gui import QgsMapTool
-from qgis.core import Qgis, QgsGeometry
+from qgis.core import Qgis
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QCursor
 from qgis.PyQt.QtWidgets import QToolTip
+from .geodesy import Geodesy
+from .utils import fmt_number, parse_number
 
-
-def _fmt(value, decimals=0):
-    """Format a number with a space as the thousands separator, avoiding
-    a comma that reads as a decimal separator in German/Austrian locales."""
-    return f"{value:,.{decimals}f}".replace(",", " ")
+NUMBER_KEYS = "0123456789.,"
 
 
 class CircleTool(QgsMapTool):
     """Click to set center, click again (or type a radius and press Enter)
-    to finish. Escape or right-click cancels."""
+    to finish. Escape or right-click cancels. The radius is a true distance
+    in meters on the ellipsoid, whatever the map canvas CRS."""
 
     def __init__(self, canvas, rubber_band, on_finished):
         super().__init__(canvas)
@@ -23,6 +21,14 @@ class CircleTool(QgsMapTool):
         self.center = None
         self._layer_valid = True
         self._typed_radius = ""
+        self._last_mouse_point = None
+        self._geodesy = None
+
+    def _geo(self):
+        """Geodesic measuring for the current canvas CRS (created on demand)."""
+        if self._geodesy is None:
+            self._geodesy = Geodesy(self.canvas().mapSettings().destinationCrs())
+        return self._geodesy
 
     def set_layer_valid(self, valid):
         self._layer_valid = valid
@@ -42,55 +48,66 @@ class CircleTool(QgsMapTool):
             self.rb.reset(Qgis.GeometryType.Polygon)
             self.center = point
             self._typed_radius = ""
+            self._geodesy = None  # pick up the current canvas CRS for this circle
             QToolTip.showText(
                 QCursor.pos(), "Move mouse to set radius, or type a number and press Enter",
                 self.canvas())
         else:
-            self._finish(self.center.distance(point))
+            # A typed radius wins over the mouse position, same as pressing Enter.
+            typed = parse_number(self._typed_radius) if self._typed_radius else None
+            self._finish(typed if typed else self._geo().distance(self.center, point))
 
     def canvasMoveEvent(self, e):
+        self._last_mouse_point = e.mapPoint()
         if self.center is not None and not self._typed_radius:
-            self._show_preview(self.center.distance(e.mapPoint()))
+            self._show_preview(self._geo().distance(self.center, self._last_mouse_point))
 
     def keyPressEvent(self, e):
-        if self.center is None:
-            if e.key() == Qt.Key.Key_Escape:
-                self.reset()
-            return
-
-        if e.key() == Qt.Key.Key_Escape:
+        # Note: in QGIS a map tool marks a key as handled with e.ignore() (yes,
+        # backwards). Otherwise QGIS also processes it - Backspace/Delete would
+        # run "Delete Selected" on the active layer.
+        key, text = e.key(), e.text()
+        if key == Qt.Key.Key_Escape:
             self.reset()
-        elif e.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            if self._typed_radius:
-                try:
-                    self._finish(float(self._typed_radius.replace(",", ".")))
-                except ValueError:
-                    pass
-        elif e.key() == Qt.Key.Key_Backspace:
-            self._typed_radius = self._typed_radius[:-1]
-            self._show_typed_preview()
-        elif e.text() and (e.text().isdigit() or e.text() in ".,"):
-            self._typed_radius += e.text()
-            self._show_typed_preview()
-
-    def _show_typed_preview(self):
-        if not self._typed_radius:
+            e.ignore()
+        elif key in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
+            if self.center is not None:
+                self._typed_radius = self._typed_radius[:-1]
+                self._refresh_preview()
+            e.ignore()
+        elif self.center is None:
             return
-        try:
-            self._show_preview(float(self._typed_radius.replace(",", ".")), typed=True)
-        except ValueError:
-            pass
+        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            radius = parse_number(self._typed_radius) if self._typed_radius else None
+            if radius:
+                self._finish(radius)
+            e.ignore()
+        elif len(text) == 1 and text in NUMBER_KEYS:
+            self._typed_radius += text
+            self._refresh_preview()
+            e.ignore()
+
+    def _refresh_preview(self):
+        """Typed radius if there is one, otherwise follow the mouse again."""
+        if self._typed_radius:
+            radius = parse_number(self._typed_radius)
+            if radius is not None:
+                self._show_preview(radius, typed=True)
+        elif self._last_mouse_point is not None:
+            self._show_preview(self._geo().distance(self.center, self._last_mouse_point))
 
     def _show_preview(self, radius, typed=False):
-        geom = QgsGeometry.fromPointXY(self.center).buffer(radius, 48)
+        geom = self._geo().circle(self.center, radius)
         self.rb.setToGeometry(geom, None)
-        area = math.pi * radius * radius
+        area = self._geo().area(geom)
         suffix = "  (typed - Enter to confirm)" if typed else ""
         QToolTip.showText(
-            QCursor.pos(), f"Radius: {_fmt(radius)} m   Area: {_fmt(area)} m²{suffix}", self.canvas())
+            QCursor.pos(),
+            f"Radius: {fmt_number(radius)} m   Area: {fmt_number(area)} m²{suffix}",
+            self.canvas())
 
     def _finish(self, radius):
-        geom = QgsGeometry.fromPointXY(self.center).buffer(radius, 48)
+        geom = self._geo().circle(self.center, radius)
         self.rb.setToGeometry(geom, None)
         self.center = None
         self._typed_radius = ""

@@ -6,7 +6,7 @@ name=QuickShapeStatistics
 qgisMinimumVersion=3.34
 qgisMaximumVersion=4.99
 description=Draw quick shapes to be used for simple zonal statistics.
-version=0.5
+version=0.6
 changelog=0.1 - Initial release
     0.2 - Removed unused scaffolding files flagged by the plugin repository scanner
     0.3 - Added invalid geometry detection with automatic repair, and per-layer invalid feature skipping
@@ -19,6 +19,21 @@ changelog=0.1 - Initial release
     0.5 - Results table columns are now resizable and sortable by clicking headers
     0.5 - Results panel now reopens automatically when a shape is finished, if it was closed
     0.5 - Added live segment length and running area preview while drawing polygons, plus typed segment length entry
+    0.6 - Fixed loading on QGIS 4 (Qt6): the results panel is now built in Python, the Qt Designer .ui file was removed
+    0.6 - Fixed feature counts including features that only touch the boundary of the drawn shape
+    0.6 - Fixed a crash when the active layer is a table without geometry
+    0.6 - Fixed a crash when a Categorized renderer classifies by an expression instead of a field
+    0.6 - Automatic grouping now only uses Categorized symbology; other renderers (e.g. Graduated) use the fallback field
+    0.6 - Class colors are only shown when the table is grouped by the renderer's own field
+    0.6 - Unloading or reloading the plugin now removes its toolbar, panel, sketch and active map tool
+    0.6 - The results panel keeps its docked or floating position when it is reopened
+    0.6 - A manually selected class field is kept when drawing a new shape on the same layer
+    0.6 - Backspace removes the last vertex while drawing a polygon
+    0.6 - Fixed Backspace/Delete while drawing also triggering QGIS' Delete Selected ("Layer not editable" message)
+    0.6 - A typed radius or segment length is now also used when clicking, not only with Enter
+    0.6 - Plugin warnings disappear after a few seconds, and right away when a suitable layer is selected
+    0.6 - Circle radius, typed segment lengths and the live tooltips are now true geodesic meters in any map CRS (previously wrong in geographic CRSs and Web Mercator)
+    0.6 - Much faster statistics on large layers: uses the data source's spatial index and prepared geometry, and reads only the attributes needed
 author=preinzi (LiberGIS)
 email=stephan@libergis.at
 about=Click a button to draw a circle or a polygon shape, which will be used to calculate basic zonal statistics on the active layer. For polygons the area will be calculated, for lines the length will be used and for points the number of points will be summarized.
